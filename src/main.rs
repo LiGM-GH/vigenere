@@ -1,13 +1,17 @@
 use iced::{
-    widget::{button, column, horizontal_space, row, text_input, Column, Row}, Alignment, Length
+    Alignment, Length,
+    widget::{Column, Row, button, column, horizontal_space, row, text_input},
 };
+
+use vigenere_rs::Vigenere;
 
 fn main() -> Result<(), MainError> {
     iced::application("calc_task", Main::update, Main::view).run_with(
         || {
             (
                 Main {
-                    message: String::new(),
+                    key: String::new(),
+                    value: String::new(),
                 },
                 iced::Task::none(),
             )
@@ -24,7 +28,8 @@ enum MainError {
 }
 
 struct Main {
-    message: String,
+    key: String,
+    value: String,
 }
 
 #[derive(Debug, Clone)]
@@ -36,7 +41,7 @@ enum MainMessage {
 impl Main {
     fn update(&mut self, msg: MainMessage) {
         match msg {
-            MainMessage::TextboxInput(thing) => self.message = thing,
+            MainMessage::TextboxInput(thing) => self.key = thing,
             MainMessage::ButtonPressed => {}
         }
     }
@@ -50,15 +55,19 @@ impl Main {
     fn content(&self) -> Column<MainMessage> {
         let textbox = row![
             horizontal_space().width(Length::FillPortion(1)),
-            text_input("Input your message", &self.message)
+            text_input("Input your message", &self.key)
+                .secure(true)
                 .width(Length::FillPortion(2))
                 .on_input(MainMessage::TextboxInput),
             horizontal_space().width(Length::FillPortion(1)),
         ];
 
+        let cipherbox = iced::widget::text(&self.key);
+
         column![
-            button("This is working").on_press(MainMessage::ButtonPressed),
             textbox,
+            button("Cipher").on_press(MainMessage::ButtonPressed),
+            cipherbox,
         ]
         .width(Length::Fill)
         .align_x(Alignment::Center)
