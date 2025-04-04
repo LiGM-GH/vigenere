@@ -1,22 +1,19 @@
+use ciphered::{CipheredMessage, CipheredView};
 use iced::{
-    Alignment, Length,
-    widget::{Column, Row, button, column, horizontal_space, row, text_input},
+    Alignment, Length, Task,
+    widget::{row, text},
 };
+use key_choose::{KeyChooseMessage, KeyChooseView};
 
-use vigenere_rs::Vigenere;
+const ERR_VIGENERE: &str = "Key must only be ascii chars";
+const ERR_VIEWINVALID: &str = "This view couldn't be created here";
+
+mod ciphered;
+mod key_choose;
 
 fn main() -> Result<(), MainError> {
-    iced::application("calc_task", Main::update, Main::view).run_with(
-        || {
-            (
-                Main {
-                    key: String::new(),
-                    value: String::new(),
-                },
-                iced::Task::none(),
-            )
-        },
-    )?;
+    iced::application("calc_task", Main::update, Main::view)
+        .run_with(|| (Main::KeyChoose(KeyChooseView::new()), Task::none()))?;
 
     Ok(())
 }
@@ -27,49 +24,63 @@ enum MainError {
     Iced(#[from] iced::Error),
 }
 
-struct Main {
-    key: String,
-    value: String,
+#[derive(Debug)]
+enum Main {
+    KeyChoose(KeyChooseView),
+    Ciphered(CipheredView),
+    Error(&'static str),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum MainMessage {
-    TextboxInput(String),
-    ButtonPressed,
+    KeyChoose(KeyChooseMessage),
+    Ciphered(CipheredMessage),
+    Error(&'static str),
+    CipherEnded(CipheredView),
 }
 
 impl Main {
-    fn update(&mut self, msg: MainMessage) {
+    fn update(&mut self, msg: MainMessage) -> Task<MainMessage> {
         match msg {
-            MainMessage::TextboxInput(thing) => self.key = thing,
-            MainMessage::ButtonPressed => {}
+            MainMessage::KeyChoose(msg) => {
+                let Main::KeyChoose(view) = self else {
+                    return Task::done(MainMessage::Error(ERR_VIEWINVALID));
+                };
+
+                return view.update(msg);
+            }
+
+            MainMessage::Ciphered(msg) => {
+                let Main::Ciphered(view) = self else {
+                    return Task::done(MainMessage::Error(ERR_VIEWINVALID));
+                };
+
+                return view.update(msg);
+            }
+            MainMessage::Error(err) => *self = Main::Error(err),
+            MainMessage::CipherEnded(ciphered_view) => {
+                // *self = Main::Ciphered(ciphered_view)
+            }
         }
+
+        Task::none()
     }
 
-    fn view(&self) -> Row<MainMessage> {
-        row![self.content(),]
-            .height(Length::Fill)
+    fn view(&self) -> iced::Element<'_, MainMessage> {
+        match self {
+            Main::KeyChoose(view) => view.view().map(MainMessage::KeyChoose),
+            Main::Ciphered(view) => view.view().map(MainMessage::Ciphered),
+            Main::Error(errmsg) => row![
+                iced::widget::column![
+                    text(*errmsg)
+                        .height(Length::Fill)
+                        .align_y(Alignment::Center)
+                ]
+                .width(Length::Fill)
+                .align_x(Alignment::Center)
+            ]
             .align_y(Alignment::Center)
-    }
-
-    fn content(&self) -> Column<MainMessage> {
-        let textbox = row![
-            horizontal_space().width(Length::FillPortion(1)),
-            text_input("Input your message", &self.key)
-                .secure(true)
-                .width(Length::FillPortion(2))
-                .on_input(MainMessage::TextboxInput),
-            horizontal_space().width(Length::FillPortion(1)),
-        ];
-
-        let cipherbox = iced::widget::text(&self.key);
-
-        column![
-            textbox,
-            button("Cipher").on_press(MainMessage::ButtonPressed),
-            cipherbox,
-        ]
-        .width(Length::Fill)
-        .align_x(Alignment::Center)
+            .into(),
+        }
     }
 }
