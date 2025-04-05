@@ -4,13 +4,20 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-iced = { version = "0.13.1", features = ["tokio"] }
-iced_aw = "0.11.0"
+iced = "0.13.1"
 itertools = "0.14.0"
 rfd = { version = "0.15.3" }
 thiserror = "2.0.12"
-tokio = "1.44.1"
 vigenere_rs = { path = "vigenere-rs", package = "vigenere-rs" }
+
+[features]
+text-input = []
 
 [workspace]
 members = ["vigenere-rs"]
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"

@@ -1,15 +1,24 @@
-use ciphered::{CipheredMessage, CipheredView};
+#![warn(
+    clippy::all,
+    clippy::complexity,
+    clippy::missing_const_for_fn,
+    clippy::mod_module_files,
+    clippy::nursery,
+    clippy::perf,
+    clippy::pedantic,
+    clippy::style,
+    clippy::suspicious
+)]
+
 use iced::{
     Alignment, Length, Task,
     widget::{row, text},
 };
 use key_choose::{KeyChooseMessage, KeyChooseView};
 
-const ERR_VIGENERE: &str = "Key must only be ascii chars";
-const ERR_VIEWINVALID: &str = "This view couldn't be created here";
-
-mod ciphered;
 mod key_choose;
+
+const ERR_VIEWINVALID: &str = "This view couldn't be created here";
 
 fn main() -> Result<(), MainError> {
     iced::application("calc_task", Main::update, Main::view)
@@ -27,40 +36,26 @@ enum MainError {
 #[derive(Debug)]
 enum Main {
     KeyChoose(KeyChooseView),
-    Ciphered(CipheredView),
     Error(&'static str),
 }
 
 #[derive(Debug)]
 enum MainMessage {
     KeyChoose(KeyChooseMessage),
-    Ciphered(CipheredMessage),
     Error(&'static str),
-    CipherEnded(CipheredView),
 }
 
 impl Main {
     fn update(&mut self, msg: MainMessage) -> Task<MainMessage> {
         match msg {
             MainMessage::KeyChoose(msg) => {
-                let Main::KeyChoose(view) = self else {
+                let Self::KeyChoose(view) = self else {
                     return Task::done(MainMessage::Error(ERR_VIEWINVALID));
                 };
 
                 return view.update(msg);
             }
-
-            MainMessage::Ciphered(msg) => {
-                let Main::Ciphered(view) = self else {
-                    return Task::done(MainMessage::Error(ERR_VIEWINVALID));
-                };
-
-                return view.update(msg);
-            }
-            MainMessage::Error(err) => *self = Main::Error(err),
-            MainMessage::CipherEnded(ciphered_view) => {
-                // *self = Main::Ciphered(ciphered_view)
-            }
+            MainMessage::Error(err) => *self = Self::Error(err),
         }
 
         Task::none()
@@ -68,9 +63,8 @@ impl Main {
 
     fn view(&self) -> iced::Element<'_, MainMessage> {
         match self {
-            Main::KeyChoose(view) => view.view().map(MainMessage::KeyChoose),
-            Main::Ciphered(view) => view.view().map(MainMessage::Ciphered),
-            Main::Error(errmsg) => row![
+            Self::KeyChoose(view) => view.view().map(MainMessage::KeyChoose),
+            Self::Error(errmsg) => row![
                 iced::widget::column![
                     text(*errmsg)
                         .height(Length::Fill)

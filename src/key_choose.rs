@@ -11,10 +11,11 @@ use iced::{
 use itertools::Itertools;
 use vigenere_rs::Vigenere;
 
-use crate::{MainMessage, ciphered::CipheredView};
+use crate::MainMessage;
 
 const FILE_DIALOG_NAME: &str = "CHOOSE FILE";
-const ERR_BAD_PASSWORD: &str = "Password should be only-ASCII and non-empty";
+const ERR_BAD_PASSWORD: &str =
+    "Password should be only-ASCII-alphabetic and non-empty";
 
 #[derive(Debug)]
 pub enum FileOrText {
@@ -25,7 +26,7 @@ pub enum FileOrText {
 
 impl FileOrText {
     pub fn take(&mut self) -> Self {
-        let mut thing = FileOrText::None;
+        let mut thing = Self::None;
 
         std::mem::swap(self, &mut thing);
 
@@ -35,8 +36,8 @@ impl FileOrText {
 
 #[derive(Debug)]
 pub struct KeyChooseView {
-    pub key: String,
-    pub input: FileOrText,
+    key: String,
+    input: FileOrText,
     output_path: Option<PathBuf>,
 }
 
@@ -52,7 +53,7 @@ pub enum KeyChooseMessage {
 }
 
 impl KeyChooseView {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             key: String::new(),
             input: FileOrText::None,
@@ -78,12 +79,12 @@ impl KeyChooseView {
 
                 if let Some(file) = file {
                     return Self::task(KeyChooseMessage::InFileSelected(file));
-                } else {
-                    println!("InFile not selected");
                 }
+
+                println!("InFile not selected");
             }
             KeyChooseMessage::InFileSelected(file) => {
-                self.input = FileOrText::File(file)
+                self.input = FileOrText::File(file);
             }
             KeyChooseMessage::OutFileChoose => {
                 let file = rfd::FileDialog::new()
@@ -92,12 +93,12 @@ impl KeyChooseView {
 
                 if let Some(file) = file {
                     return Self::task(KeyChooseMessage::OutFileSelected(file));
-                } else {
-                    println!("OutFile not chosen");
                 }
+
+                println!("OutFile not chosen");
             }
             KeyChooseMessage::OutFileSelected(path) => {
-                self.output_path = Some(path)
+                self.output_path = Some(path);
             }
             KeyChooseMessage::Cipher => {
                 return self.cipher();
@@ -123,7 +124,7 @@ impl KeyChooseView {
 
                 let file = BufReader::new(file);
 
-                let chars_iter = file.bytes().flat_map(Result::ok);
+                let chars_iter = file.bytes().filter_map(Result::ok);
 
                 let result = vigenere.cipher(chars_iter);
 
@@ -137,16 +138,23 @@ impl KeyChooseView {
 
                 let mut outfile = BufWriter::new(outfile);
 
-                const N_VALUES: usize = 4;
+                {
+                    const N_VALUES: usize = 4;
 
-                for slice in result.chunks(N_VALUES).into_iter() {
-                    let slice = slice.pad_using(N_VALUES, |_| b' ');
-                    if outfile.write_all(&slice.collect::<Vec<u8>>()).is_err() {
-                        return Self::err(
-                            "Something went wrong while writing result to the file",
-                        );
-                    };
+                    for slice in &result.chunks(N_VALUES) {
+                        let slice = slice.pad_using(N_VALUES, |_| b' ');
+                        if outfile
+                            .write_all(&slice.collect::<Vec<u8>>())
+                            .is_err()
+                        {
+                            return Self::err(
+                                "Something went wrong while writing result to the file",
+                            );
+                        };
+                    }
                 }
+
+                Task::none()
             }
             FileOrText::Text(text) => {
                 todo!();
@@ -154,9 +162,7 @@ impl KeyChooseView {
             FileOrText::None => {
                 unreachable!("This should never happen!")
             }
-        };
-
-        Task::done(MainMessage::CipherEnded(CipheredView {}))
+        }
     }
 
     fn decipher(&mut self) -> Task<MainMessage> {
@@ -172,7 +178,7 @@ impl KeyChooseView {
 
                 let file = BufReader::new(file);
 
-                let chars_iter = file.bytes().flat_map(Result::ok);
+                let chars_iter = file.bytes().filter_map(Result::ok);
 
                 let result = vigenere.decipher(chars_iter);
 
@@ -186,16 +192,23 @@ impl KeyChooseView {
 
                 let mut outfile = BufWriter::new(outfile);
 
-                const N_VALUES: usize = 4;
+                {
+                    const N_VALUES: usize = 4;
 
-                for slice in result.chunks(N_VALUES).into_iter() {
-                    let slice = slice.pad_using(N_VALUES, |_| b' ');
-                    if outfile.write_all(&slice.collect::<Vec<u8>>()).is_err() {
-                        return Self::err(
-                            "Something went wrong while writing result to the file",
-                        );
-                    };
+                    for slice in &result.chunks(N_VALUES) {
+                        let slice = slice.pad_using(N_VALUES, |_| b' ');
+                        if outfile
+                            .write_all(&slice.collect::<Vec<u8>>())
+                            .is_err()
+                        {
+                            return Self::err(
+                                "Something went wrong while writing result to the file",
+                            );
+                        };
+                    }
                 }
+
+                Task::none()
             }
             FileOrText::Text(text) => {
                 todo!();
@@ -203,9 +216,7 @@ impl KeyChooseView {
             FileOrText::None => {
                 unreachable!("This should never happen!")
             }
-        };
-
-        Task::done(MainMessage::CipherEnded(CipheredView {}))
+        }
     }
 
     pub fn view(&self) -> Element<'_, KeyChooseMessage> {

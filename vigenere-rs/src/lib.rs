@@ -45,7 +45,7 @@ impl Vigenere {
 
         inner
             .filter(|ch| ch.is_ascii_alphabetic())
-            .map(|ch| dbg!(ch.to_ascii_uppercase() as char) as u8)
+            .map(|ch| ch.to_ascii_uppercase())
             .zip(chars)
             .map(shift)
     }
@@ -59,7 +59,7 @@ impl Vigenere {
 
         inner
             .filter(|ch| ch.is_ascii_alphabetic())
-            .map(|ch| dbg!(ch.to_ascii_uppercase() as char) as u8)
+            .map(|ch| ch.to_ascii_uppercase())
             .zip(chars)
             .map(shift)
     }
