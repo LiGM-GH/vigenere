@@ -53,6 +53,8 @@ pub enum KeyChooseMessage {
 }
 
 impl KeyChooseView {
+    const N_VALUES: usize = 4;
+
     pub const fn new() -> Self {
         Self {
             key: String::new(),
@@ -139,10 +141,7 @@ impl KeyChooseView {
                 let mut outfile = BufWriter::new(outfile);
 
                 {
-                    const N_VALUES: usize = 4;
-
-                    for slice in &result.chunks(N_VALUES) {
-                        let slice = slice.pad_using(N_VALUES, |_| b' ');
+                    for slice in &result.chunks(Self::N_VALUES) {
                         if outfile
                             .write_all(&slice.collect::<Vec<u8>>())
                             .is_err()
@@ -193,10 +192,7 @@ impl KeyChooseView {
                 let mut outfile = BufWriter::new(outfile);
 
                 {
-                    const N_VALUES: usize = 4;
-
-                    for slice in &result.chunks(N_VALUES) {
-                        let slice = slice.pad_using(N_VALUES, |_| b' ');
+                    for slice in &result.chunks(Self::N_VALUES) {
                         if outfile
                             .write_all(&slice.collect::<Vec<u8>>())
                             .is_err()
