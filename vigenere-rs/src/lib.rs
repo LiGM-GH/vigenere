@@ -13,20 +13,93 @@ trait AsciiShift {
     fn ascii_rshift(self, shift: Self) -> Self;
 }
 
-const ALPHA_RANGE_LEN: u8 = 126 - 32 + 1;
+trait IsAscii {
+    fn is_ascii(&self) -> bool;
+}
+
+trait IsAsciiExtended: IsAscii {
+    fn is_ascii_extended(&self) -> bool;
+    fn is_ascii_all(&self) -> bool {
+        self.is_ascii_extended() || self.is_ascii()
+    }
+}
+
+impl IsAscii for char {
+    fn is_ascii(&self) -> bool {
+        self.is_ascii()
+    }
+}
+
+impl IsAscii for u8 {
+    fn is_ascii(&self) -> bool {
+        self.is_ascii()
+    }
+}
+
+impl IsAsciiExtended for char {
+    fn is_ascii_extended(&self) -> bool {
+        (*self as u8).is_ascii_extended()
+    }
+}
+
+impl IsAsciiExtended for u8 {
+    fn is_ascii_extended(&self) -> bool {
+        127 < *self && *self <= 225u8
+    }
+}
+
+#[allow(dead_code)]
+mod consts {
+    //! ```image
+    //! ascii range
+    //! [ control | graphic | extended ]
+    //! ^^       ^ ^       ^ ^        ^^
+    //! ||       | |       | |        ||
+    //! +|-------|-|-------|-|--------||---- ASCIIALL_START
+    //!  +-------|-|-------|-|--------||---- ASCII_CONTROL_START
+    //!          +-|-------|-|--------||---- ASCII_CONTROL_END
+    //!            +-------|-|--------||---- ASCII_START
+    //!                    +-|--------||---- ASCII_END
+    //!                      +--------||---- ASCIIEXT_START
+    //!                               +|---- ASCIIEXT_END
+    //!                                +---- ASCIIALL_END
+    //! ```
+    pub const ASCII_CONTROL_START: u8 = 0;
+    pub const ASCII_CONTROL_END: u8 = 31;
+    pub const ASCII_START: u8 = 32;
+    pub const ASCII_END: u8 = 127;
+    pub const ASCIIEXT_START: u8 = 128;
+    pub const ASCIIEXT_END: u8 = 255;
+    pub const ASCIIALL_START: u8 = ASCII_CONTROL_START;
+    pub const ASCIIALL_END: u8 = ASCIIEXT_END;
+    pub const ASCIIALL_RANGE_LEN: u8 = ASCIIALL_END - ASCII_CONTROL_END;
+}
+use consts::{ASCII_START, ASCIIALL_RANGE_LEN};
 
 impl AsciiShift for u8 {
     fn ascii_lshift(self, shift: Self) -> Self {
-        ((self - 32) + (shift - 32)) % ALPHA_RANGE_LEN + 32
+        ((self - ASCII_START) + (shift - ASCII_START)) % ASCIIALL_RANGE_LEN
+            + ASCII_START
     }
     fn ascii_rshift(self, shift: Self) -> Self {
-        ((self - 32 + ALPHA_RANGE_LEN) - (shift - 32)) % ALPHA_RANGE_LEN + 32
+        dbg!("No overflow here");
+        let rel_self = self - ASCII_START;
+        dbg!("No overflow still");
+        let rel_shift = shift - ASCII_START;
+        dbg!("No overflow shift");
+        let rel_plus = ASCIIALL_RANGE_LEN - rel_shift;
+        dbg!("No overflow plus");
+        let abs_sum = rel_self + rel_plus;
+        dbg!("Overflow sum");
+        let result = abs_sum % ASCIIALL_RANGE_LEN + ASCII_START;
+        dbg!("Overflow here");
+        result
     }
 }
 
 impl Vigenere {
     pub fn new(key: String) -> Option<Self> {
-        if key.chars().all(|val| val.is_ascii_graphic() || val == ' ')
+        if key.chars().all(|val| val.is_ascii_all() || val == ' ')
             && !key.is_empty()
         {
             Some(Self { key })
@@ -53,7 +126,7 @@ impl Vigenere {
         self.cipher_inner(inner, shift)
     }
 
-    pub(self) fn cipher_inner<
+    pub(crate) fn cipher_inner<
         InputIter: Iterator<Item = u8>,
         Fun: FnMut((u8, u8)) -> u8,
     >(
@@ -100,7 +173,7 @@ mod tests {
         };
 
         let inner = b"FIRST SECOND THIRD".to_vec();
-        let shift = |(l, r)| AsciiShift::ascii_lshift(l, r);
+        let shift = |(l, r)| AsciiShift::ascii_lshift(dbg!(l as char) as u8, dbg!(r as char) as u8);
         let result = vigenere.cipher_inner(inner.iter().cloned(), shift);
 
         assert_eq!(vigenere.decipher(result).collect::<Vec<_>>(), inner);
