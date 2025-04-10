@@ -13,20 +13,105 @@ trait AsciiShift {
     fn ascii_rshift(self, shift: Self) -> Self;
 }
 
-const ALPHA_RANGE_LEN: u8 = 126 - 32 + 1;
+trait IsAscii {
+    fn is_ascii(&self) -> bool;
+}
+
+trait IsAsciiExtended: IsAscii {
+    fn is_ascii_extended(&self) -> bool;
+    fn is_ascii_all(&self) -> bool {
+        IsAscii::is_ascii(self) || IsAsciiExtended::is_ascii_extended(self)
+    }
+}
+
+impl IsAscii for char {
+    fn is_ascii(&self) -> bool {
+        IsAscii::is_ascii(&(*self as u8))
+    }
+}
+
+impl IsAscii for u8 {
+    fn is_ascii(&self) -> bool {
+        ASCII_START <= *self && *self <= ASCII_END
+    }
+}
+
+impl IsAsciiExtended for char {
+    fn is_ascii_extended(&self) -> bool {
+        (*self as u8).is_ascii_extended()
+    }
+
+    fn is_ascii_all(&self) -> bool {
+        let self_ext = IsAsciiExtended::is_ascii_extended(self);
+        let self_asc = IsAscii::is_ascii(self);
+        self_asc || self_ext
+    }
+}
+
+impl IsAsciiExtended for u8 {
+    fn is_ascii_extended(&self) -> bool {
+        ASCIIEXT_START <= *self
+        // && *self <= ASCIIEXT_END // https://rust-lang.github.io/rust-clippy/master/index.html#absurd_extreme_comparisons
+    }
+
+    fn is_ascii_all(&self) -> bool {
+        let self_ext = IsAsciiExtended::is_ascii_extended(self);
+        let self_asc = IsAscii::is_ascii(self);
+        self_asc || self_ext
+    }
+}
+
+#[allow(dead_code)]
+mod consts {
+    //! ```image
+    //! ascii range
+    //! [ control | graphic | extended ]
+    //! ^^       ^ ^       ^ ^        ^^
+    //! ||       | |       | |        ||
+    //! +|-------|-|-------|-|--------||---- ASCIIALL_START
+    //!  +-------|-|-------|-|--------||---- ASCII_CONTROL_START
+    //!          +-|-------|-|--------||---- ASCII_CONTROL_END
+    //!            +-------|-|--------||---- ASCII_START
+    //!                    +-|--------||---- ASCII_END
+    //!                      +--------||---- ASCIIEXT_START
+    //!                               +|---- ASCIIEXT_END
+    //!                                +---- ASCIIALL_END
+    //! ```
+    pub const ASCII_CONTROL_START: u8 = 0;
+    pub const ASCII_CONTROL_END: u8 = 31;
+    pub const ASCII_START: u8 = 32;
+    pub const ASCII_END: u8 = 127;
+    pub const ASCIIEXT_START: u8 = 128;
+    pub const ASCIIEXT_END: u8 = 255;
+    pub const ASCIIALL_START: u8 = ASCII_CONTROL_START;
+    pub const ASCIIALL_END: u8 = ASCIIEXT_END;
+    pub const ASCIIALL_RANGE_LEN: u8 = ASCIIALL_END - ASCII_CONTROL_END;
+}
+use consts::{
+    ASCII_END, ASCII_START, ASCIIALL_RANGE_LEN, ASCIIEXT_START,
+};
 
 impl AsciiShift for u8 {
     fn ascii_lshift(self, shift: Self) -> Self {
-        ((self - 32) + (shift - 32)) % ALPHA_RANGE_LEN + 32
+        let rel_self = (self - ASCII_START) as u16;
+        let rel_shift = (shift - ASCII_START) as u16;
+        let sum = rel_self + rel_shift;
+
+        (sum % ASCIIALL_RANGE_LEN as u16) as u8 + ASCII_START
     }
     fn ascii_rshift(self, shift: Self) -> Self {
-        ((self - 32 + ALPHA_RANGE_LEN) - (shift - 32)) % ALPHA_RANGE_LEN + 32
+        let rel_self = (self - ASCII_START) as u16;
+        let rel_shift = (shift - ASCII_START) as u16;
+        let mid_sum = ASCIIALL_RANGE_LEN as u16 - rel_shift;
+        let abs_sum = rel_self + mid_sum;
+
+        (abs_sum % ASCIIALL_RANGE_LEN as u16) as u8 + ASCII_START
     }
 }
 
 impl Vigenere {
     pub fn new(key: String) -> Option<Self> {
-        if key.chars().all(|val| val.is_ascii_graphic() || val == ' ')
+        if key.chars().all(|val| val.is_ascii_all() || val == ' ')
             && !key.is_empty()
         {
             Some(Self { key })
@@ -53,7 +138,7 @@ impl Vigenere {
         self.cipher_inner(inner, shift)
     }
 
-    pub(self) fn cipher_inner<
+    pub(crate) fn cipher_inner<
         InputIter: Iterator<Item = u8>,
         Fun: FnMut((u8, u8)) -> u8,
     >(
@@ -64,7 +149,7 @@ impl Vigenere {
         let chars = self.key.chars().map(|ch| ch as u8).cycle();
 
         inner
-            .filter(|ch| ch.is_ascii_graphic() || *ch == b' ')
+            .filter(IsAsciiExtended::is_ascii_all)
             .zip(chars)
             .map(shift)
     }
@@ -72,6 +157,28 @@ impl Vigenere {
 
 #[cfg(test)]
 mod tests {
+    macro_rules! dprint {
+        (#$val:expr) => {{
+            eprint!("{: <7} \t| ", format!("{:?}", $val));
+            $val
+        }};
+        ($val:expr) => {{
+            eprint!(
+                "{: <7}: {: <10} \t| ",
+                stringify!($val),
+                format!("{:?}", $val)
+            );
+            $val
+        }};
+    }
+
+    macro_rules! dprintln {
+        ($val:expr) => {{
+            eprintln!("{: <7}: {: <10}", stringify!($val), format!("{:?}", $val));
+            $val
+        }};
+    }
+
     use super::*;
 
     #[test]
@@ -99,10 +206,21 @@ mod tests {
             unreachable!()
         };
 
-        let inner = b"FIRST SECOND THIRD".to_vec();
-        let shift = |(l, r)| AsciiShift::ascii_lshift(l, r);
+        let inner = b"FIrst seCOnd thiRD".to_vec();
+        let shift = |(l, r)| {
+            dprint!(# "INPUT");
+            AsciiShift::ascii_lshift(dprint!(l as char) as u8, dprintln!(r as char) as u8)
+        };
+
         let result = vigenere.cipher_inner(inner.iter().cloned(), shift);
 
-        assert_eq!(vigenere.decipher(result).collect::<Vec<_>>(), inner);
+        let shift = |(l, r)| {
+            dprint!(# "OUTPUT");
+            AsciiShift::ascii_rshift(dprint!(l as char) as u8, dprintln!(r as char) as u8)
+        };
+
+        let deciphered =
+            vigenere.cipher_inner(result, shift).collect::<Vec<_>>();
+        assert_eq!(String::from_utf8(deciphered), String::from_utf8(inner));
     }
 }
