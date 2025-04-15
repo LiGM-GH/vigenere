@@ -1,3 +1,8 @@
+const UTFGRAPHIC_START: u32 = 0x0020;
+const UTFGRAPHIC_ENDED: u32 = 0xFFFD;
+
+const UTFGRAPHIC_LEN: u32 = UTFGRAPHIC_ENDED - UTFGRAPHIC_START + 1;
+
 pub struct Vigenere {
     key: String,
 }
@@ -8,150 +13,62 @@ impl std::fmt::Debug for Vigenere {
     }
 }
 
-trait AsciiShift {
-    fn ascii_lshift(self, shift: Self) -> Self;
-    fn ascii_rshift(self, shift: Self) -> Self;
+trait Shift: Sized {
+    fn lshift(self, shift: Self) -> Option<Self>;
+    fn rshift(self, shift: Self) -> Option<Self>;
 }
 
-trait IsAscii {
-    fn is_ascii(&self) -> bool;
-}
-
-trait IsAsciiExtended: IsAscii {
-    fn is_ascii_extended(&self) -> bool;
-    fn is_ascii_all(&self) -> bool {
-        IsAscii::is_ascii(self) || IsAsciiExtended::is_ascii_extended(self)
-    }
-}
-
-impl IsAscii for char {
-    fn is_ascii(&self) -> bool {
-        IsAscii::is_ascii(&(*self as u8))
-    }
-}
-
-impl IsAscii for u8 {
-    fn is_ascii(&self) -> bool {
-        ASCII_START <= *self && *self <= ASCII_END
-    }
-}
-
-impl IsAsciiExtended for char {
-    fn is_ascii_extended(&self) -> bool {
-        (*self as u8).is_ascii_extended()
+impl Shift for char {
+    fn lshift(self, shift: Self) -> Option<Self> {
+        char::from_u32(
+            (self as u32 + shift as u32 - UTFGRAPHIC_START) % UTFGRAPHIC_LEN
+                + UTFGRAPHIC_START,
+        )
     }
 
-    fn is_ascii_all(&self) -> bool {
-        let self_ext = IsAsciiExtended::is_ascii_extended(self);
-        let self_asc = IsAscii::is_ascii(self);
-        self_asc || self_ext
-    }
-}
-
-impl IsAsciiExtended for u8 {
-    fn is_ascii_extended(&self) -> bool {
-        ASCIIEXT_START <= *self
-        // && *self <= ASCIIEXT_END // https://rust-lang.github.io/rust-clippy/master/index.html#absurd_extreme_comparisons
-    }
-
-    fn is_ascii_all(&self) -> bool {
-        let self_ext = IsAsciiExtended::is_ascii_extended(self);
-        let self_asc = IsAscii::is_ascii(self);
-        self_asc || self_ext
-    }
-}
-
-#[allow(dead_code)]
-mod consts {
-    //! ```image
-    //! ascii range
-    //! [ control | graphic | extended ]
-    //! ^^       ^ ^       ^ ^        ^^
-    //! ||       | |       | |        ||
-    //! +|-------|-|-------|-|--------||---- ASCIIALL_START
-    //!  +-------|-|-------|-|--------||---- ASCII_CONTROL_START
-    //!          +-|-------|-|--------||---- ASCII_CONTROL_END
-    //!            +-------|-|--------||---- ASCII_START
-    //!                    +-|--------||---- ASCII_END
-    //!                      +--------||---- ASCIIEXT_START
-    //!                               +|---- ASCIIEXT_END
-    //!                                +---- ASCIIALL_END
-    //! ```
-    pub const ASCII_CONTROL_START: u8 = 0;
-    pub const ASCII_CONTROL_END: u8 = 31;
-    pub const ASCII_START: u8 = 32;
-    pub const ASCII_END: u8 = 127;
-    pub const ASCIIEXT_START: u8 = 128;
-    pub const ASCIIEXT_END: u8 = 255;
-    pub const ASCIIALL_START: u8 = ASCII_CONTROL_START;
-    pub const ASCIIALL_END: u8 = ASCIIEXT_END;
-    pub const ASCIIALL_RANGE_LEN: u8 = ASCIIALL_END - ASCII_CONTROL_END;
-}
-use consts::{
-    ASCII_END, ASCII_START, ASCIIALL_RANGE_LEN, ASCIIEXT_START,
-};
-
-impl AsciiShift for u8 {
-    fn ascii_lshift(self, shift: Self) -> Self {
-        let rel_self = (self - ASCII_START) as u16;
-        let rel_shift = (shift - ASCII_START) as u16;
-        let sum = rel_self + rel_shift;
-
-        (sum % ASCIIALL_RANGE_LEN as u16) as u8 + ASCII_START
-    }
-    fn ascii_rshift(self, shift: Self) -> Self {
-        let rel_self = (self - ASCII_START) as u16;
-        let rel_shift = (shift - ASCII_START) as u16;
-        let mid_sum = ASCIIALL_RANGE_LEN as u16 - rel_shift;
-        let abs_sum = rel_self + mid_sum;
-
-        (abs_sum % ASCIIALL_RANGE_LEN as u16) as u8 + ASCII_START
+    fn rshift(self, shift: Self) -> Option<Self> {
+        char::from_u32(
+            (self as u32 + UTFGRAPHIC_LEN - shift as u32 - UTFGRAPHIC_START)
+                % UTFGRAPHIC_LEN
+                + UTFGRAPHIC_START,
+        )
     }
 }
 
 impl Vigenere {
     pub fn new(key: String) -> Option<Self> {
-        if key.chars().all(|val| val.is_ascii_all() || val == ' ')
-            && !key.is_empty()
-        {
-            Some(Self { key })
-        } else {
-            None
-        }
+        Some(Self { key })
     }
 
-    pub fn decipher<I: Iterator<Item = u8>>(
+    pub fn decipher<I: Iterator<Item = char>>(
         &self,
         inner: I,
-    ) -> impl Iterator<Item = u8> + use<'_, I> {
-        let shift = |(l, r): (u8, u8)| AsciiShift::ascii_rshift(l, r);
+    ) -> impl Iterator<Item = char> + use<'_, I> {
+        let shift = |(l, r): (char, char)| Shift::rshift(l, r);
 
         self.cipher_inner(inner, shift)
     }
 
-    pub fn cipher<I: Iterator<Item = u8>>(
+    pub fn cipher<I: Iterator<Item = char>>(
         &self,
         inner: I,
-    ) -> impl Iterator<Item = u8> + use<'_, I> {
-        let shift = |(l, r): (u8, u8)| AsciiShift::ascii_lshift(l, r);
+    ) -> impl Iterator<Item = char> + use<'_, I> {
+        let shift = |(l, r): (char, char)| Shift::lshift(l, r);
 
         self.cipher_inner(inner, shift)
     }
 
     pub(crate) fn cipher_inner<
-        InputIter: Iterator<Item = u8>,
-        Fun: FnMut((u8, u8)) -> u8,
+        InputIter: Iterator<Item = char>,
+        Fun: FnMut((char, char)) -> Option<char>,
     >(
         &self,
         inner: InputIter,
         shift: Fun,
-    ) -> impl Iterator<Item = u8> + use<'_, InputIter, Fun> {
-        let chars = self.key.chars().map(|ch| ch as u8).cycle();
+    ) -> impl Iterator<Item = char> + use<'_, InputIter, Fun> {
+        let chars = self.key.chars().cycle();
 
-        inner
-            .filter(IsAsciiExtended::is_ascii_all)
-            .zip(chars)
-            .map(shift)
+        inner.zip(chars).filter_map(shift)
     }
 }
 
@@ -174,7 +91,11 @@ mod tests {
 
     macro_rules! dprintln {
         ($val:expr) => {{
-            eprintln!("{: <7}: {: <10}", stringify!($val), format!("{:?}", $val));
+            eprintln!(
+                "{: <7}: {: <10}",
+                stringify!($val),
+                format!("{:?}", $val)
+            );
             $val
         }};
     }
@@ -189,9 +110,9 @@ mod tests {
 
     #[test]
     fn ascii_shift_works() {
-        for i in b'A'..=b'Z' {
-            for j in b'A'..=b'Z' {
-                assert!(i.ascii_lshift(j).ascii_rshift(j) == i);
+        for i in 'A'..='Z' {
+            for j in 'A'..='Z' {
+                assert!(i.lshift(j).unwrap().rshift(j).unwrap() == i);
             }
         }
     }
@@ -206,21 +127,42 @@ mod tests {
             unreachable!()
         };
 
-        let inner = b"FIrst seCOnd thiRD".to_vec();
+        let inner = "FIrst seCOnd thiRD";
         let shift = |(l, r)| {
             dprint!(# "INPUT");
-            AsciiShift::ascii_lshift(dprint!(l as char) as u8, dprintln!(r as char) as u8)
+            Shift::lshift(dprint!(l), dprintln!(r))
         };
 
-        let result = vigenere.cipher_inner(inner.iter().cloned(), shift);
+        let result = vigenere.cipher_inner(inner.chars(), shift);
 
         let shift = |(l, r)| {
             dprint!(# "OUTPUT");
-            AsciiShift::ascii_rshift(dprint!(l as char) as u8, dprintln!(r as char) as u8)
+            Shift::rshift(dprint!(l), dprintln!(r))
         };
 
         let deciphered =
-            vigenere.cipher_inner(result, shift).collect::<Vec<_>>();
-        assert_eq!(String::from_utf8(deciphered), String::from_utf8(inner));
+            vigenere.cipher_inner(result, shift).collect::<String>();
+        assert_eq!(deciphered.as_str(), inner);
+    }
+
+    #[test]
+    fn cyrillic_vigenere() {
+        let vigenere = Vigenere::new("Тестовый пароль".into());
+
+        assert!(vigenere.is_some());
+
+        let Some(vigenere) = vigenere else {
+            unreachable!()
+        };
+
+        let message = "Кириллическое сообщение";
+
+        let ciphered = vigenere.cipher(message.chars());
+
+        let result = vigenere.decipher(ciphered).collect::<String>();
+
+        println!("result: {:?}", result);
+        println!("message: {:?}", message);
+        assert!(result == message);
     }
 }

@@ -126,7 +126,14 @@ impl KeyChooseView {
 
                 let file = BufReader::new(file);
 
-                let chars_iter = file.bytes().filter_map(Result::ok);
+                let bytes = file.bytes().filter_map(Result::ok).chunks(32);
+
+                let chars_iter = bytes
+                    .into_iter()
+                    .flat_map(|chunk| {
+                        String::from_utf8(chunk.collect::<Vec<u8>>())
+                    })
+                    .flat_map(|val| val.chars().collect::<Vec<_>>());
 
                 let result = vigenere.cipher(chars_iter);
 
@@ -143,7 +150,7 @@ impl KeyChooseView {
                 {
                     for slice in &result.chunks(Self::N_VALUES) {
                         if outfile
-                            .write_all(&slice.collect::<Vec<u8>>())
+                            .write_all(slice.collect::<String>().as_bytes())
                             .is_err()
                         {
                             return Self::err(
@@ -177,7 +184,14 @@ impl KeyChooseView {
 
                 let file = BufReader::new(file);
 
-                let chars_iter = file.bytes().filter_map(Result::ok);
+                let bytes = file.bytes().filter_map(Result::ok).chunks(32);
+
+                let chars_iter = bytes
+                    .into_iter()
+                    .flat_map(|chunk| {
+                        String::from_utf8(chunk.collect::<Vec<u8>>())
+                    })
+                    .flat_map(|val| val.chars().collect::<Vec<_>>());
 
                 let result = vigenere.decipher(chars_iter);
 
@@ -194,7 +208,7 @@ impl KeyChooseView {
                 {
                     for slice in &result.chunks(Self::N_VALUES) {
                         if outfile
-                            .write_all(&slice.collect::<Vec<u8>>())
+                            .write_all(slice.collect::<String>().as_bytes())
                             .is_err()
                         {
                             return Self::err(
