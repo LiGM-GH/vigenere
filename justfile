@@ -7,4 +7,4 @@ run:
     cargo run
 
 test:
-    cargo test --workspace -- --nocapture
+    cargo test --workspace

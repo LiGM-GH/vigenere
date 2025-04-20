@@ -20,6 +20,14 @@ trait Shift: Sized {
 
 impl Shift for char {
     fn lshift(self, shift: Self) -> Option<Self> {
+        if UTFGRAPHIC_START > self as u32
+            || self as u32 > UTFGRAPHIC_ENDED
+            || UTFGRAPHIC_START > shift as u32
+            || shift as u32 > UTFGRAPHIC_ENDED
+        {
+            return None;
+        }
+
         char::from_u32(
             (self as u32 + shift as u32 - UTFGRAPHIC_START) % UTFGRAPHIC_LEN
                 + UTFGRAPHIC_START,
@@ -27,6 +35,14 @@ impl Shift for char {
     }
 
     fn rshift(self, shift: Self) -> Option<Self> {
+        if UTFGRAPHIC_START > self as u32
+            || self as u32 > UTFGRAPHIC_ENDED
+            || UTFGRAPHIC_START > shift as u32
+            || shift as u32 > UTFGRAPHIC_ENDED
+        {
+            return None;
+        }
+
         char::from_u32(
             (self as u32 + UTFGRAPHIC_LEN - shift as u32 - UTFGRAPHIC_START)
                 % UTFGRAPHIC_LEN
@@ -90,6 +106,10 @@ mod tests {
     }
 
     macro_rules! dprintln {
+        (#$val:expr) => {{
+            eprintln!("{: <7} \t| ", format!("{:?}", $val));
+            $val
+        }};
         ($val:expr) => {{
             eprintln!(
                 "{: <7}: {: <10}",
@@ -101,12 +121,6 @@ mod tests {
     }
 
     use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
 
     #[test]
     fn ascii_shift_works() {
@@ -164,5 +178,90 @@ mod tests {
         println!("result: {:?}", result);
         println!("message: {:?}", message);
         assert!(result == message);
+    }
+
+    #[test]
+    fn files_vigenere() {
+        use file_utils::{read_file, write_file};
+
+        let vigenere = Vigenere::new("Whatever".into())
+            .expect("Vigenere couldn't be created");
+
+        write_file(
+            "../../tests/vigenere_input.txt",
+            "FIRST SECOND THIRD".chars(),
+        );
+
+        let input_content = read_file("../../tests/vigenere_input.txt");
+        eprintln!("\n\n  Input content: '{}'\n\n", input_content);
+        let result = vigenere.cipher(input_content.chars());
+        write_file("../../tests/vigenere.txt", result);
+
+        let cipher_content = read_file("../../tests/vigenere.txt");
+        let result = vigenere.decipher(cipher_content.chars());
+        write_file("../../tests/vigenere_result.txt", result);
+
+        let output_content = read_file("../../tests/vigenere_result.txt");
+        eprintln!("\n\n  Output content: '{}'\n\n", output_content);
+
+        assert_eq!(input_content, output_content);
+    }
+
+    mod file_utils {
+        use itertools::Itertools;
+        use std::{
+            fs::File,
+            io::{BufReader, BufWriter, Read, Write},
+            path::Path,
+        };
+
+        const N_VALUES: usize = 4;
+
+        pub fn read_file(path: impl AsRef<Path> + Copy) -> String {
+            eprintln!(
+                "This is what it looks like normally: {:?}",
+                std::fs::read_to_string(path)
+            );
+            let file = File::open(path).expect("Couldn't get input path");
+
+            let file = BufReader::new(file);
+
+            let bytes = file
+                .bytes()
+                .filter_map(Result::ok)
+                .inspect(|ch| {
+                    dprintln!(*ch as char);
+                })
+                .chunks(N_VALUES);
+
+            let chars_iter = bytes
+                .into_iter()
+                .flat_map(|chunk| String::from_utf8(chunk.collect::<Vec<u8>>()))
+                .inspect(|read_file_chunk| {
+                    dprintln!(read_file_chunk);
+                })
+                .flat_map(|val| val.chars().collect::<Vec<_>>());
+
+            chars_iter.collect()
+        }
+
+        pub fn write_file(
+            output_path: impl AsRef<Path>,
+            result: impl Iterator<Item = char>,
+        ) {
+            let outfile = File::create(output_path)
+                .expect("Couldn't write to the output file");
+
+            let mut outfile = BufWriter::new(outfile);
+
+            for slice in &result.chunks(N_VALUES) {
+                if outfile
+                    .write_all(slice.collect::<String>().as_bytes())
+                    .is_err()
+                {
+                    panic!("Couldn't write to the file");
+                };
+            }
+        }
     }
 }
