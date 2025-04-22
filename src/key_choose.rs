@@ -6,7 +6,10 @@ use std::{
 
 use iced::{
     Alignment, Element, Length, Task,
-    widget::{Column, button, column, horizontal_space, row, text_input},
+    widget::{
+        self, Column, button, column, horizontal_space, row,
+        text_editor::Content, text_input, vertical_space,
+    },
 };
 use itertools::Itertools;
 use vigenere_rs::Vigenere;
@@ -20,13 +23,12 @@ const ERR_BAD_PASSWORD: &str =
 #[derive(Debug)]
 pub enum FileOrText {
     File(PathBuf),
-    Text(String),
-    None,
+    Text(iced::widget::text_editor::Content),
 }
 
 impl FileOrText {
     pub fn take(&mut self) -> Self {
-        let mut thing = Self::None;
+        let mut thing = Self::Text(Content::new());
 
         std::mem::swap(self, &mut thing);
 
@@ -50,15 +52,16 @@ pub enum KeyChooseMessage {
     OutFileSelected(PathBuf),
     Cipher,
     Decipher,
+    BigtextAction(iced::widget::text_editor::Action),
 }
 
 impl KeyChooseView {
     const N_VALUES: usize = 4;
 
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             key: String::new(),
-            input: FileOrText::None,
+            input: FileOrText::Text(Content::new()),
             output_path: None,
         }
     }
@@ -108,6 +111,11 @@ impl KeyChooseView {
             KeyChooseMessage::Decipher => {
                 return self.decipher();
             }
+            KeyChooseMessage::BigtextAction(action) => {
+                if let FileOrText::Text(text) = &mut self.input {
+                    text.perform(action);
+                }
+            }
         }
 
         Task::none()
@@ -147,26 +155,44 @@ impl KeyChooseView {
 
                 let mut outfile = BufWriter::new(outfile);
 
-                {
-                    for slice in &result.chunks(Self::N_VALUES) {
-                        if outfile
-                            .write_all(slice.collect::<String>().as_bytes())
-                            .is_err()
-                        {
-                            return Self::err(
-                                "Something went wrong while writing result to the file",
-                            );
-                        };
-                    }
+                for slice in &result.chunks(Self::N_VALUES) {
+                    if outfile
+                        .write_all(slice.collect::<String>().as_bytes())
+                        .is_err()
+                    {
+                        return Self::err(
+                            "Something went wrong while writing result to the file",
+                        );
+                    };
                 }
 
                 Task::none()
             }
             FileOrText::Text(text) => {
-                todo!();
-            }
-            FileOrText::None => {
-                unreachable!("This should never happen!")
+                let text = text.text();
+                let result = vigenere.cipher(text.chars());
+                let Some(outfile) = self.output_path.take() else {
+                    unreachable!("Cipher executed while outpath is None");
+                };
+
+                let Ok(outfile) = File::create(outfile) else {
+                    return Self::err("Couldn't create the file");
+                };
+
+                let mut outfile = BufWriter::new(outfile);
+
+                for slice in &result.chunks(Self::N_VALUES) {
+                    if outfile
+                        .write_all(slice.collect::<String>().as_bytes())
+                        .is_err()
+                    {
+                        return Self::err(
+                            "Something went wrong while writing result to the file",
+                        );
+                    };
+                }
+
+                Task::none()
             }
         }
     }
@@ -205,26 +231,46 @@ impl KeyChooseView {
 
                 let mut outfile = BufWriter::new(outfile);
 
-                {
-                    for slice in &result.chunks(Self::N_VALUES) {
-                        if outfile
-                            .write_all(slice.collect::<String>().as_bytes())
-                            .is_err()
-                        {
-                            return Self::err(
-                                "Something went wrong while writing result to the file",
-                            );
-                        };
-                    }
+                for slice in &result.chunks(Self::N_VALUES) {
+                    if outfile
+                        .write_all(slice.collect::<String>().as_bytes())
+                        .is_err()
+                    {
+                        return Self::err(
+                            "Something went wrong while writing result to the file",
+                        );
+                    };
                 }
 
                 Task::none()
             }
             FileOrText::Text(text) => {
-                todo!();
-            }
-            FileOrText::None => {
-                unreachable!("This should never happen!")
+                let text = text.text();
+
+                let result = vigenere.decipher(text.chars());
+
+                let Some(outfile) = self.output_path.take() else {
+                    unreachable!("Cipher executed while outpath is None");
+                };
+
+                let Ok(outfile) = File::create(outfile) else {
+                    return Self::err("Couldn't create the file");
+                };
+
+                let mut outfile = BufWriter::new(outfile);
+
+                for slice in &result.chunks(Self::N_VALUES) {
+                    if outfile
+                        .write_all(slice.collect::<String>().as_bytes())
+                        .is_err()
+                    {
+                        return Self::err(
+                            "Something went wrong while writing result to the file",
+                        );
+                    };
+                }
+
+                Task::none()
             }
         }
     }
@@ -246,28 +292,53 @@ impl KeyChooseView {
             horizontal_space().width(Length::FillPortion(1)),
         ];
 
-        let buttons =
-            match (&self.output_path, &self.input, self.key.is_empty()) {
-                (Some(_), FileOrText::File(_) | FileOrText::Text(_), false) => {
-                    row![
-                        button("Choose input file")
-                            .on_press(KeyChooseMessage::InFileChoose),
-                        button("Choose output file")
-                            .on_press(KeyChooseMessage::OutFileChoose),
-                        button("Cipher").on_press(KeyChooseMessage::Cipher),
-                        button("Decipher").on_press(KeyChooseMessage::Decipher),
-                    ]
-                }
-                _ => row![
+        let buttons = match (&self.output_path, &self.input) {
+            (Some(_), FileOrText::File(_) | FileOrText::Text(_))
+                if !self.key.is_empty() =>
+            {
+                row![
                     button("Choose input file")
                         .on_press(KeyChooseMessage::InFileChoose),
                     button("Choose output file")
                         .on_press(KeyChooseMessage::OutFileChoose),
+                    button("Cipher").on_press(KeyChooseMessage::Cipher),
+                    button("Decipher").on_press(KeyChooseMessage::Decipher),
+                ]
+            }
+            _ => row![
+                button("Choose input file")
+                    .on_press(KeyChooseMessage::InFileChoose),
+                button("Choose output file")
+                    .on_press(KeyChooseMessage::OutFileChoose),
+            ],
+        };
+
+        let big_textfield: iced::widget::Row<'_, _, iced::Theme> =
+            match &self.input {
+                FileOrText::Text(text) => row![
+                    horizontal_space().width(Length::FillPortion(1)),
+                    iced::widget::container(
+                        widget::text_editor(text)
+                            .placeholder("Input your message")
+                            .on_action(KeyChooseMessage::BigtextAction)
+                    )
+                    .width(Length::FillPortion(2)),
+                    horizontal_space().width(Length::FillPortion(1)),
                 ],
+                FileOrText::File(_) => {
+                    row![horizontal_space().width(Length::FillPortion(1)),]
+                }
             };
 
-        column![textbox, buttons,]
-            .width(Length::Fill)
-            .align_x(Alignment::Center)
+        column![
+            vertical_space().height(Length::FillPortion(8)),
+            textbox,
+            vertical_space().height(Length::FillPortion(1)),
+            big_textfield,
+            buttons,
+            vertical_space().height(Length::FillPortion(8)),
+        ]
+        .width(Length::Fill)
+        .align_x(Alignment::Center)
     }
 }
