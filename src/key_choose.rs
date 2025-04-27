@@ -20,6 +20,8 @@ const FILE_DIALOG_NAME: &str = "CHOOSE FILE";
 const ERR_BAD_PASSWORD: &str =
     "Password should be only-ASCII-alphabetic and non-empty";
 
+const IDENTIFYING_MESSAGE: &str = "M%S$&#%";
+
 #[derive(Debug)]
 pub enum FileOrText {
     File(PathBuf),
@@ -170,9 +172,12 @@ impl KeyChooseView {
             }
             FileOrText::Text(text) => {
                 let text = text.text();
-                let result = vigenere.cipher(text.chars());
+                let result = vigenere
+                    .cipher(IDENTIFYING_MESSAGE.chars().chain(text.chars()));
                 let Some(outfile) = self.output_path.take() else {
-                    unreachable!("Cipher executed while outpath is None");
+                    return Self::err(
+                        "Cipher path executed while output path is none",
+                    );
                 };
 
                 let Ok(outfile) = File::create(outfile) else {
@@ -219,7 +224,7 @@ impl KeyChooseView {
                     })
                     .flat_map(|val| val.chars().collect::<Vec<_>>());
 
-                let result = vigenere.decipher(chars_iter);
+                let mut result = vigenere.decipher(chars_iter);
 
                 let Some(outfile) = self.output_path.take() else {
                     unreachable!("Cipher executed while outpath is None");
@@ -230,6 +235,15 @@ impl KeyChooseView {
                 };
 
                 let mut outfile = BufWriter::new(outfile);
+
+                let identmsg = result
+                    .by_ref()
+                    .take(IDENTIFYING_MESSAGE.len())
+                    .collect::<String>();
+
+                if identmsg != IDENTIFYING_MESSAGE {
+                    return Self::err("Message was not ciphered in this app");
+                }
 
                 for slice in &result.chunks(Self::N_VALUES) {
                     if outfile
@@ -247,7 +261,7 @@ impl KeyChooseView {
             FileOrText::Text(text) => {
                 let text = text.text();
 
-                let result = vigenere.decipher(text.chars());
+                let mut result = vigenere.decipher(text.chars());
 
                 let Some(outfile) = self.output_path.take() else {
                     unreachable!("Cipher executed while outpath is None");
@@ -259,6 +273,15 @@ impl KeyChooseView {
 
                 let mut outfile = BufWriter::new(outfile);
 
+                let identmsg = result
+                    .by_ref()
+                    .take(IDENTIFYING_MESSAGE.len())
+                    .collect::<String>();
+
+                if identmsg != IDENTIFYING_MESSAGE {
+                    return Self::err("Message was not ciphered in this app");
+                }
+
                 for slice in &result.chunks(Self::N_VALUES) {
                     if outfile
                         .write_all(slice.collect::<String>().as_bytes())
@@ -267,7 +290,7 @@ impl KeyChooseView {
                         return Self::err(
                             "Something went wrong while writing result to the file",
                         );
-                    };
+                    }
                 }
 
                 Task::none()
@@ -292,13 +315,19 @@ impl KeyChooseView {
             horizontal_space().width(Length::FillPortion(1)),
         ];
 
+        let val = match &self.input {
+            FileOrText::Text(text) if text.text().trim().is_empty() => {
+                Some(KeyChooseMessage::InFileChoose)
+            }
+            _ => None,
+        };
+
         let buttons = match (&self.output_path, &self.input) {
             (Some(_), FileOrText::File(_) | FileOrText::Text(_))
                 if !self.key.is_empty() =>
             {
                 row![
-                    button("Choose input file")
-                        .on_press(KeyChooseMessage::InFileChoose),
+                    button("Choose input file").on_press_maybe(val),
                     button("Choose output file")
                         .on_press(KeyChooseMessage::OutFileChoose),
                     button("Cipher").on_press(KeyChooseMessage::Cipher),
@@ -306,8 +335,7 @@ impl KeyChooseView {
                 ]
             }
             _ => row![
-                button("Choose input file")
-                    .on_press(KeyChooseMessage::InFileChoose),
+                button("Choose input file").on_press_maybe(val),
                 button("Choose output file")
                     .on_press(KeyChooseMessage::OutFileChoose),
             ],
