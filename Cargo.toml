@@ -9,9 +9,10 @@ itertools = "0.14.0"
 rfd = { version = "0.15.3" }
 thiserror = "2.0.12"
 vigenere_rs = { path = "vigenere-rs", package = "vigenere-rs" }
+winit = { version = "0.30.9", features = ["rwh_06"] }
 
-[features]
-text-input = []
+[target.'cfg(windows)'.dependencies]
+windows = "0.61.1" 
 
 [workspace]
 members = ["vigenere-rs"]

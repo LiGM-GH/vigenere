@@ -1,8 +1,12 @@
 use std::{
     fs::File,
     io::{BufReader, BufWriter, Read, Write},
+    num::NonZero,
     path::PathBuf,
 };
+
+#[cfg(target_os="windows")]
+use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 
 use iced::{
     Alignment, Element, Length, Task,
@@ -10,9 +14,17 @@ use iced::{
         self, Column, button, column, horizontal_space, row,
         text_editor::Content, text_input, vertical_space,
     },
+    window::{
+        get_raw_id,
+        raw_window_handle::{
+            DisplayHandle, RawWindowHandle, Win32WindowHandle, WindowHandle,
+            XcbWindowHandle,
+        },
+    },
 };
 use itertools::Itertools;
 use vigenere_rs::Vigenere;
+use winit::raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::MainMessage;
 
@@ -94,6 +106,32 @@ impl KeyChooseView {
                 self.input = FileOrText::File(file);
             }
             KeyChooseMessage::OutFileChoose => {
+                #[cfg(target_os="windows")]
+                let file = {
+                    let hwnd = GetForegroundWindow();
+                    let handle = iced::window::raw_window_handle::Win32WindowHandle::new(hwnd);
+                    let handle = unsafe { iced::window::raw_window_handle::WindowHandle::borrow_raw(RawWindowHandle::Win32(handle)) };
+                    let display = DisplayHandle::windows();
+
+                    struct DisplayAndWinHandle(DisplayHandle, WindowHandle);
+                    impl HasDisplayHandle for DisplayAndWinHandle {
+                        fn display_handle(&self) -> Result<DisplayHandle<'_>, winit::raw_window_handle::HandleError> {
+                            Ok(self.0.clone())
+                        }
+                    }
+
+                    impl HasWindowHandle for DisplayAndWinHandle {
+                        fn window_handle(&self) -> Result<WindowHandle<'_>, winit::raw_window_handle::HandleError> {
+                            Ok(self.1.clone())
+                        }
+                    }
+                    rfd::FileDialog::new()
+                        .set_title(FILE_DIALOG_NAME)
+                        .set_parent(&DisplayAndWinHandle(display, handle))
+                        .save_file();
+                };
+
+                #[cfg(not(target_os = "windows"))]
                 let file = rfd::FileDialog::new()
                     .set_title(FILE_DIALOG_NAME)
                     .save_file();
