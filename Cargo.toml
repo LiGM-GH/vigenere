@@ -13,7 +13,7 @@ vigenere_rs = { path = "vigenere-rs", package = "vigenere-rs" }
 winit = { version = "0.30.9", features = ["rwh_06"] }
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.61.1", features = ["Win32"] }
+windows = { version = "0.61.1", features = ["Win32", "Win32_UI"] }
 
 [workspace]
 members = ["vigenere-rs"]
