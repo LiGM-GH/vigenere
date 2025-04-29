@@ -109,14 +109,17 @@ impl KeyChooseView {
                     let hwnd = GetForegroundWindow();
                     let handle =
                         iced::window::raw_window_handle::Win32WindowHandle::new(
-                            hwnd,
+                            std::num::NonZeroUsize::new(hwnd),
                         );
                     let handle = unsafe {
                         iced::window::raw_window_handle::WindowHandle::borrow_raw(RawWindowHandle::Win32(handle))
                     };
                     let display = DisplayHandle::windows();
 
-                    struct DisplayAndWinHandle<'a>(DisplayHandle<'a>, WindowHandle<'a>);
+                    struct DisplayAndWinHandle<'a>(
+                        DisplayHandle<'a>,
+                        WindowHandle<'a>,
+                    );
                     impl<'a> HasDisplayHandle for DisplayAndWinHandle<'a> {
                         fn display_handle(
                             &self,
