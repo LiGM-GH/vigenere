@@ -109,7 +109,7 @@ impl KeyChooseView {
                     let hwnd = GetForegroundWindow();
                     let handle =
                         iced::window::raw_window_handle::Win32WindowHandle::new(
-                            std::num::NonZero::<isize>::new(hwnd).expect("Couldn't get current HWND"),
+                            std::num::NonZero::<isize>::new(hwnd.0 as isize).expect("Couldn't get current HWND"),
                         );
                     let handle = unsafe {
                         iced::window::raw_window_handle::WindowHandle::borrow_raw(RawWindowHandle::Win32(handle))
