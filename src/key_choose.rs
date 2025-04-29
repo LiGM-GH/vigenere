@@ -106,7 +106,7 @@ impl KeyChooseView {
             KeyChooseMessage::OutFileChoose => {
                 #[cfg(target_os = "windows")]
                 let file = {
-                    let hwnd = GetForegroundWindow();
+                    let hwnd = unsafe { GetForegroundWindow() };
                     let handle =
                         iced::window::raw_window_handle::Win32WindowHandle::new(
                             std::num::NonZero::<isize>::new(hwnd.0 as isize).expect("Couldn't get current HWND"),
