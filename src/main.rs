@@ -12,8 +12,10 @@
 
 use iced::{
     Alignment, Length, Task,
-    widget::{row, text},
+    widget::{button, row, text},
 };
+use iced_aw::{Menu, MenuBar, menu::Item, menu_bar};
+use iced_aw::{menu, menu_items};
 use key_choose::{KeyChooseMessage, KeyChooseView};
 
 mod key_choose;
@@ -36,13 +38,16 @@ enum MainError {
 #[derive(Debug)]
 enum Main {
     KeyChoose(KeyChooseView),
+    About,
     Error(&'static str),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum MainMessage {
     KeyChoose(KeyChooseMessage),
+    ToggleAbout,
     Error(&'static str),
+    None,
 }
 
 impl Main {
@@ -56,13 +61,18 @@ impl Main {
                 return view.update(msg);
             }
             MainMessage::Error(err) => *self = Self::Error(err),
+            MainMessage::ToggleAbout => match self {
+                Self::About => *self = Self::KeyChoose(KeyChooseView::new()),
+                _ => *self = Self::About,
+            },
+            MainMessage::None => {}
         }
 
         Task::none()
     }
 
     fn view(&self) -> iced::Element<'_, MainMessage> {
-        match self {
+        let main_view = match self {
             Self::KeyChoose(view) => view.view().map(MainMessage::KeyChoose),
             Self::Error(errmsg) => row![
                 iced::widget::column![
@@ -75,6 +85,33 @@ impl Main {
             ]
             .align_y(Alignment::Center)
             .into(),
-        }
+
+            Self::About => {
+                iced::widget::row![
+                iced::widget::column![iced::widget::text(
+                    "Липкин Г.М.\nГруппа А-18-21\nВариант: шифр Виженера"
+                ),
+                iced::widget::button("Back").on_press(MainMessage::ToggleAbout)]
+                .height(Length::Shrink)
+                .width(Length::Fill)
+                .align_x(Alignment::Center)
+            ]
+                .height(Length::Fill)
+                .width(Length::Fill)
+                .align_y(Alignment::Center)
+                .into()
+            }
+        };
+
+        let menu_tpl_1 =
+            |items| Menu::new(items).max_width(180.0).offset(15.0).spacing(5.0);
+        let menu = menu_bar!((
+            button("File").on_press(MainMessage::None),
+            menu_tpl_1(menu_items!(
+                (button("About").on_press(MainMessage::ToggleAbout))
+            ))
+        ));
+
+        iced::widget::column![menu, main_view,].into()
     }
 }
