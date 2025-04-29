@@ -116,8 +116,8 @@ impl KeyChooseView {
                     };
                     let display = DisplayHandle::windows();
 
-                    struct DisplayAndWinHandle(DisplayHandle, WindowHandle);
-                    impl HasDisplayHandle for DisplayAndWinHandle {
+                    struct DisplayAndWinHandle<'a>(DisplayHandle<'a>, WindowHandle<'a>);
+                    impl<'a> HasDisplayHandle for DisplayAndWinHandle<'a> {
                         fn display_handle(
                             &self,
                         ) -> Result<
@@ -128,7 +128,7 @@ impl KeyChooseView {
                         }
                     }
 
-                    impl HasWindowHandle for DisplayAndWinHandle {
+                    impl<'a> HasWindowHandle for DisplayAndWinHandle<'a> {
                         fn window_handle(
                             &self,
                         ) -> Result<
