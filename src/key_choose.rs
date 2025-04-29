@@ -5,14 +5,14 @@ use std::{
 };
 
 #[cfg(target_os = "windows")]
-use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
-#[cfg(target_os = "windows")]
-use winit::raw_window_handle::{HasDisplayHandle, HasWindowHandle};
-#[cfg(target_os = "windows")]
 use iced::window::raw_window_handle::{
     DisplayHandle, RawWindowHandle, Win32WindowHandle, WindowHandle,
     XcbWindowHandle,
 };
+#[cfg(target_os = "windows")]
+use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+#[cfg(target_os = "windows")]
+use winit::raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use iced::{
     Alignment, Element, Length, Task,
@@ -142,7 +142,7 @@ impl KeyChooseView {
                     rfd::FileDialog::new()
                         .set_title(FILE_DIALOG_NAME)
                         .set_parent(&DisplayAndWinHandle(display, handle))
-                        .save_file();
+                        .save_file()
                 };
 
                 #[cfg(not(target_os = "windows"))]
